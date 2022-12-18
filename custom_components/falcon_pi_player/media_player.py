@@ -11,6 +11,10 @@ from homeassistant.components.media_player.const import (
     SUPPORT_VOLUME_STEP,
     SUPPORT_SELECT_SOURCE,
     SUPPORT_STOP,
+    SUPPORT_PLAY,
+    SUPPORT_PAUSE,
+    SUPPORT_PREVIOUS_TRACK,
+    SUPPORT_NEXT_TRACK
 )
 from homeassistant.const import (
     CONF_HOST,
@@ -25,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_NAME = "Falcon Pi Player"
 
 SUPPORT_FPP = (
-    SUPPORT_VOLUME_SET | SUPPORT_VOLUME_STEP | SUPPORT_SELECT_SOURCE | SUPPORT_STOP
+    SUPPORT_VOLUME_SET | SUPPORT_VOLUME_STEP | SUPPORT_SELECT_SOURCE | SUPPORT_STOP | SUPPORT_PLAY | SUPPORT_PAUSE | SUPPORT_PREVIOUS_TRACK | SUPPORT_NEXT_TRACK
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -69,8 +73,8 @@ class FalconPiPlayer(MediaPlayerEntity):
         self._volume = status["volume"] / 100
         self._media_title = status["current_sequence"].replace(".fseq", "")
         self._media_playlist = status["current_playlist"]["playlist"]
-        self._media_duration = str(int(status["seconds_played"]) + int(status["seconds_remaining"]))
-        self._media_position = status["seconds_played"]
+        self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
+        self._media_position = int(status["seconds_played"])
         self._media_position_updated_at = datetime.datetime.now()
 
         playlists = requests.get(
@@ -163,3 +167,19 @@ class FalconPiPlayer(MediaPlayerEntity):
     def media_stop(self):
         """Immediately stop all FPP Sequences playing"""
         requests.get("http://%s/api/playlists/stop" % (self._host))
+        
+    def media_play(self):
+        """Resume FPP Sequences playing"""
+        requests.get("http://%s/api/playlists/resume" % (self._host))
+        
+    def media_pause(self):
+        """Pause FPP Sequences playing"""
+        requests.get("http://%s/api/playlists/pause" % (self._host))
+        
+    def media_next_track(self):
+        """Next FPP Sequences playing"""
+        requests.get("http://%s/api/command/Next Playlist Item" % (self._host))
+        
+    def media_previous_track(self):
+        """Prev FPP Sequences playing"""
+        requests.get("http://%s/api/command/Prev Playlist Item" % (self._host))
