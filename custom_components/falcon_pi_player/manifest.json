@@ -1,13 +1,13 @@
 {
     "domain": "falcon_pi_player",
     "name": "Falcon Pi Player",
-    "documentation": "https://github.com/koolsb/ha-fpp",
-    "codeowners": ["@koolsb"],
+    "documentation": "https://github.com/Aleks130699/ha-fpp",
+    "codeowners": ["@koolsb","@Aleks130699"],
     "iot_class": "local_polling",
     "dependencies": ["http"],
     "after_dependencies": ["media_player"],
     "requirements": ["requests==2.28.1"],
     "config_flow": false,
-    "issue_tracker": "https://github.com/koolsb/ha-fpp/issues",
+    "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
     "version": "0.1.1"
   }
