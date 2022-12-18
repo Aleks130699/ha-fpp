@@ -3,6 +3,7 @@ import logging
 import requests
 import datetime
 import voluptuous as vol
+import socket
 
 from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity
 from homeassistant.components.media_player.const import (
@@ -20,6 +21,8 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
     STATE_IDLE,
+    STATE_OFF,
+    STATE_PAUSED,
     STATE_PLAYING,
 )
 import homeassistant.helpers.config_validation as cv
@@ -64,23 +67,27 @@ class FalconPiPlayer(MediaPlayerEntity):
 
     def update(self):
         """Get the latest state from the player."""
-        status = requests.get("http://%s/api/fppd/status" % (self._host)).json()
-
-        if status["status_name"] == "playing":
-            self._state = STATE_PLAYING
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex((self._host,80))
+        if result != 0:
+            self._state = "off"
         else:
-            self._state = STATE_IDLE
-        self._volume = status["volume"] / 100
-        self._media_title = status["current_sequence"].replace(".fseq", "")
-        self._media_playlist = status["current_playlist"]["playlist"]
-        self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
-        self._media_position = int(status["seconds_played"])
-        self._media_position_updated_at = datetime.datetime.now()
-
-        playlists = requests.get(
-            "http://%s/api/playlists/playable" % (self._host)
-        ).json()
-        self._playlists = playlists
+            status = requests.get("http://%s/api/fppd/status" % (self._host)).json()
+    
+            self._state = status["status_name"] 
+            self._volume = status["volume"] / 100
+            if self._state == "playing":
+                self._media_title = status["current_sequence"].replace(".fseq", "")
+                self._media_playlist = status["current_playlist"]["playlist"]
+                self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
+                self._media_position = int(status["seconds_played"])
+                self._media_position_updated_at = datetime.datetime.now()
+    
+            playlists = requests.get(
+                "http://%s/api/playlists/playable" % (self._host)
+            ).json()
+            self._playlists = playlists
 
     @property
     def name(self):
@@ -89,8 +96,19 @@ class FalconPiPlayer(MediaPlayerEntity):
 
     @property
     def state(self):
-        """Return the state of the device."""
-        return self._state
+        """Return the state of the device"""
+        if self._state is None:
+            return STATE_OFF
+        if self._state == "off":
+            return STATE_OFF
+        if self._state == "idle":
+            return STATE_IDLE
+        if self._state == "playing":
+            return STATE_PLAYING
+        if self._state == "paused":
+            return STATE_PAUSED
+
+        return STATE_IDLE
 
     @property
     def volume_level(self):
