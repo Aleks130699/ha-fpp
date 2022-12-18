@@ -1,5 +1,5 @@
 {
-    "domain": "fpp",
+    "domain": "Falcon Pi Player",
     "name": "Falcon Pi Player",
     "documentation": "https://github.com/koolsb/ha-fpp",
     "codeowners": ["@koolsb"],
