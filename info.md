@@ -1,4 +1,4 @@
-[![](https://img.shields.io/github/release/koolsb/ha-fpp/all.svg?style=for-the-badge)](https://github.com/Aleks130699/ha-fpp/releases)
+[![](https://img.shields.io/github/release/Aleks130699/ha-fpp/all.svg?style=for-the-badge)](https://github.com/Aleks130699/ha-fpp/releases)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
 [![](https://img.shields.io/github/license/Aleks130699/ha-fpp?style=for-the-badge)](LICENSE)
 
@@ -39,7 +39,7 @@ After a correct installation, your configuration directory should look like the 
     └── ...
     └── configuration.yaml
     └── custom_components
-        └── falcon_pi_player.py
+        └── falcon_pi_player
             └── __init__.py
             └── media_player.py
             └── manifest.json
