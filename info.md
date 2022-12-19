@@ -1,6 +1,6 @@
-[![](https://img.shields.io/github/release/koolsb/ha-fpp/all.svg?style=for-the-badge)](https://github.com/koolsb/ha-fpp/releases)
+[![](https://img.shields.io/github/release/koolsb/ha-fpp/all.svg?style=for-the-badge)](https://github.com/Aleks130699/ha-fpp/releases)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/custom-components/hacs)
-[![](https://img.shields.io/github/license/koolsb/ha-fpp?style=for-the-badge)](LICENSE)
+[![](https://img.shields.io/github/license/Aleks130699/ha-fpp?style=for-the-badge)](LICENSE)
 
 # HomeAssistant - Falcon Pi Player (FPP) Component
 
@@ -13,6 +13,10 @@ This is a custom component to allow control of the Falcon Pi Player in [Home Ass
 * Start a playlist or sequence
 * Stop a playlist or sequence
 * Set or step the player volume
+* Next a sequence
+* Prev a sequence
+* Pause a sequence
+* Resume a sequence
 
 # Installation
 
