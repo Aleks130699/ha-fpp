@@ -6,7 +6,7 @@
     "iot_class": "local_polling",
     "dependencies": ["http"],
     "after_dependencies": ["media_player"],
-    "requirements": ["requests==2.28.1"],
+    "requirements": [],
     "config_flow": false,
     "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
     "version": "0.1.1"
