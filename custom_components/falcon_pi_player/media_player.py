@@ -1,9 +1,10 @@
 """Support for the Falcon Pi Player."""
 import logging
 import requests
-import datetime
 import voluptuous as vol
 import socket
+
+from homeassistant.util import dt
 
 from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity
 from homeassistant.components.media_player.const import (
@@ -15,7 +16,8 @@ from homeassistant.components.media_player.const import (
     SUPPORT_PLAY,
     SUPPORT_PAUSE,
     SUPPORT_PREVIOUS_TRACK,
-    SUPPORT_NEXT_TRACK
+    SUPPORT_NEXT_TRACK,
+    SUPPORT_SEEK
 )
 from homeassistant.const import (
     CONF_HOST,
@@ -58,12 +60,14 @@ class FalconPiPlayer(MediaPlayerEntity):
         self._name = name
         self._state = STATE_IDLE
         self._volume = 0
-        self._media_title = ""
-        self._media_playlist = ""
+        self._media_title = None
+        self._media_playlist = None
         self._playlists = []
-        self._media_duration = 0
-        self._media_position = 0
-        self._media_position_updated_at = datetime.datetime.now()
+        self._media_duration = None
+        self._media_position = None
+        self._media_position_updated_at = None
+        self._attr_unique_id = "media_player_{name}"
+        self._available = False
 
     def update(self):
         """Get the latest state from the player."""
@@ -72,22 +76,30 @@ class FalconPiPlayer(MediaPlayerEntity):
         result = sock.connect_ex((self._host,80))
         if result != 0:
             self._state = "off"
+            self._available = False
         else:
             status = requests.get("http://%s/api/fppd/status" % (self._host)).json()
     
             self._state = status["status_name"] 
             self._volume = status["volume"] / 100
             if self._state == "playing":
-                self._media_title = status["current_sequence"].replace(".fseq", "")
+                self._media_title = status["current_sequence"].replace(".fseq", "") if status["current_sequence"] != "" else status["current_song"]
                 self._media_playlist = status["current_playlist"]["playlist"]
                 self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
                 self._media_position = int(status["seconds_played"])
-                self._media_position_updated_at = datetime.datetime.now()
+                self._media_position_updated_at = dt.utcnow()
+            elif self._state != "paused": 
+                self._media_title = None
+                self._media_playlist = None
+                self._media_duration = None
+                self._media_position = None
+                self._media_position_updated_at = None
     
             playlists = requests.get(
                 "http://%s/api/playlists/playable" % (self._host)
             ).json()
             self._playlists = playlists
+            self._available = True
 
     @property
     def name(self):
@@ -109,6 +121,10 @@ class FalconPiPlayer(MediaPlayerEntity):
             return STATE_PAUSED
 
         return STATE_IDLE
+        
+    @property
+    def available(self):
+        return self._available
 
     @property
     def volume_level(self):
@@ -129,7 +145,7 @@ class FalconPiPlayer(MediaPlayerEntity):
     def media_playlist(self):
         """Title of current playlist."""
         return self._media_playlist
-
+        
     @property
     def source_list(self):
         """Return available playlists"""
@@ -201,3 +217,6 @@ class FalconPiPlayer(MediaPlayerEntity):
     def media_previous_track(self):
         """Prev FPP Sequences playing"""
         requests.get("http://%s/api/command/Prev Playlist Item" % (self._host))
+        
+    def media_seek(self, position: float) -> None:
+        """Seek FPP Sequences playing"""
