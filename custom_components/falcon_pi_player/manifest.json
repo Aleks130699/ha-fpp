@@ -9,5 +9,5 @@
     "requirements": [],
     "config_flow": false,
     "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
-    "version": "0.1.1"
+    "version": "0.1.2"
   }
