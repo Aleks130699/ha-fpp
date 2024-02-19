@@ -1,4 +1,5 @@
 {
     "name": "Falcon Pi Player (FPP)",
-    "render_readme": true,
+    "homeassistant": "0.116",
+    "render_readme": true
 }
