@@ -67,7 +67,7 @@ class FalconPiPlayer(MediaPlayerEntity):
         self._media_position = None
         self._media_position_updated_at = None
         self._attr_media_image_url = None
-        self._attr_unique_id = "media_player_{name}"
+        self._attr_unique_id = f"media_player_{name}"
         self._available = False
 
     def update(self):
