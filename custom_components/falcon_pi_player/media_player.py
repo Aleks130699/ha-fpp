@@ -66,6 +66,7 @@ class FalconPiPlayer(MediaPlayerEntity):
         self._media_duration = None
         self._media_position = None
         self._media_position_updated_at = None
+        self._attr_media_image_url = None
         self._attr_unique_id = "media_player_{name}"
         self._available = False
 
@@ -83,17 +84,19 @@ class FalconPiPlayer(MediaPlayerEntity):
             self._state = status["status_name"] 
             self._volume = status["volume"] / 100
             if self._state == "playing":
-                self._media_title = status["current_sequence"].replace(".fseq", "") if status["current_sequence"] != "" else status["current_song"]
+                self._media_title = status["current_sequence"].replace(".fseq", "") if status["current_sequence"] != "" else status["current_song"].replace(".mp3", "").replace(".mp4", "")
                 self._media_playlist = status["current_playlist"]["playlist"]
                 self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
                 self._media_position = int(status["seconds_played"])
                 self._media_position_updated_at = dt.utcnow()
+                self._attr_media_image_url = ("http://%s/api/file/Images/" % (self._host)) + (self._media_title) + ".jpg"
             elif self._state != "paused": 
                 self._media_title = None
                 self._media_playlist = None
                 self._media_duration = None
                 self._media_position = None
                 self._media_position_updated_at = None
+                self._attr_media_image_url = None
     
             playlists = requests.get(
                 "http://%s/api/playlists/playable" % (self._host)
