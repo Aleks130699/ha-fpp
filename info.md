@@ -53,7 +53,8 @@ After a correct installation, your configuration directory should look like the 
     media_player:
       - platform: falcon_pi_player
         name: FPP_NAME
-        host: IP_ADDRESS (or hostname)
+        host: IP_ADDRESS
+        port: PORT #optional
 
 2. Reboot Home Assistant
 3. You're good to go!
