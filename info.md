@@ -58,3 +58,7 @@ After a correct installation, your configuration directory should look like the 
 
 2. Reboot Home Assistant
 3. You're good to go!
+
+# Covers
+
+To use the covers, you need to add jpg images to the image item on the fpp player through the File Manager, the file name must exactly match the file being played, replacing the extension. ".fseq", ".mp3" or ".mp4" to ".jpg"
