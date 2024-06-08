@@ -9,6 +9,7 @@ This is a custom component to allow control of the Falcon Pi Player in [Home Ass
 # Features:
 
 * View current playing sequence and playlist
+* Cover art support
 * List all available playlist and sequences as sources
 * Start a playlist or sequence
 * Stop a playlist or sequence
