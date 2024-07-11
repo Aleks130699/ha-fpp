@@ -56,6 +56,8 @@ After a correct installation, your configuration directory should look like the 
         name: FPP_NAME
         host: IP_ADDRESS 
         port: PORT #optional
+        username: USERNAME #optional
+        password: PASSWORD #optional
 
 2. Reboot Home Assistant
 3. You're good to go!
