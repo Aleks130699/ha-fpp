@@ -23,6 +23,8 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_PORT,
     CONF_NAME,
+    CONF_USERNAME,
+    CONF_PASSWORD,
     STATE_IDLE,
     STATE_OFF,
     STATE_PAUSED,
@@ -43,6 +45,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
         vol.Required(CONF_HOST): cv.string,
         vol.Optional(CONF_PORT, default=80): cv.string,
         vol.Required(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_USERNAME, default="admin"): cv.string,
+        vol.Optional(CONF_PASSWORD, default="falcon"): cv.string,
     }
 )
 
@@ -50,17 +54,19 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the FPP platform."""
 
-    add_entities([FalconPiPlayer(config[CONF_HOST], config[CONF_PORT], config[CONF_NAME])])
+    add_entities([FalconPiPlayer(config[CONF_HOST], config[CONF_PORT], config[CONF_NAME], config[CONF_USERNAME], config[CONF_PASSWORD])])
 
 
 class FalconPiPlayer(MediaPlayerEntity):
     """Representation of a Falcon Pi Player"""
 
-    def __init__(self, host, port, name):
+    def __init__(self, host, port, name, user, password):
         """Initialize the Player."""
         self._host = host
         self._port = port
         self._name = name
+        self._user = user
+        self._pass = password
         self._state = STATE_IDLE
         self._volume = 0
         self._media_title = None
@@ -82,7 +88,7 @@ class FalconPiPlayer(MediaPlayerEntity):
             self._state = "off"
             self._available = False
         else:
-            status = requests.get("http://%s:%s/api/fppd/status" % (self._host, self._port)).json()
+            status = requests.get("http://%s:%s@%s:%s/api/fppd/status" % (self._user, self._pass, self._host, self._port)).json()
     
             self._state = status["status_name"] 
             self._volume = status["volume"] / 100
@@ -92,7 +98,7 @@ class FalconPiPlayer(MediaPlayerEntity):
                 self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
                 self._media_position = int(status["seconds_played"])
                 self._media_position_updated_at = dt.utcnow()
-                self._attr_media_image_url = ("http://%s:%s/api/file/Images/" % (self._host, self._port)) + (self._media_title) + ".jpg"
+                self._attr_media_image_url = ("http://%s:%s@%s:%s/api/file/Images/" % (self._user, self._pass, self._host, self._port)) + (self._media_title) + ".jpg"
             elif self._state != "paused": 
                 self._media_title = None
                 self._media_playlist = None
@@ -102,7 +108,7 @@ class FalconPiPlayer(MediaPlayerEntity):
                 self._attr_media_image_url = None
     
             playlists = requests.get(
-                "http://%s:%s/api/playlists/playable" % (self._host, self._port)
+                "http://%s:%s@%s:%s/api/playlists/playable" % (self._user, self._pass, self._host, self._port)
             ).json()
             self._playlists = playlists
             self._available = True
@@ -179,50 +185,50 @@ class FalconPiPlayer(MediaPlayerEntity):
 
     def select_source(self, source):
         """Choose a playlist to play."""
-        requests.get("http://%s:%s/api/playlist/%s/start" % (self._host, self._port, source))
+        requests.get("http://%s:%s@%s:%s/api/playlist/%s/start" % (self._user, self._pass, self._host, self._port, source))
 
     def set_volume_level(self, volume):
         """Set volume level."""
         volume = int(volume * 100)
         _LOGGER.info("volume is %s" % (volume))
         requests.post(
-            "http://%s:%s/api/command" % (self._host, self._port),
+            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
             json={"command": "Volume Set", "args": [volume]},
         )
 
     def volume_up(self):
         """Increase volume by 1 step."""
         requests.post(
-            "http://%s:%s/api/command" % (self._host, self._port),
+            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
             json={"command": "Volume Increase", "args": ["1"]},
         )
 
     def volume_down(self):
         """Decrease volume by 1 step."""
         requests.post(
-            "http://%s:%s/api/command" % (self._host, self._port),
+            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
             json={"command": "Volume Decrease", "args": ["1"]},
         )
 
     def media_stop(self):
         """Immediately stop all FPP Sequences playing"""
-        requests.get("http://%s:%s/api/playlists/stop" % (self._host, self._port))
+        requests.get("http://%s:%s@%s:%s/api/playlists/stop" % (self._user, self._pass, self._host, self._port))
         
     def media_play(self):
         """Resume FPP Sequences playing"""
-        requests.get("http://%s:%s/api/playlists/resume" % (self._host, self._port))
+        requests.get("http://%s:%s@%s:%s/api/playlists/resume" % (self._user, self._pass, self._host, self._port))
         
     def media_pause(self):
         """Pause FPP Sequences playing"""
-        requests.get("http://%s:%s/api/playlists/pause" % (self._host, self._port))
+        requests.get("http://%s:%s@%s:%s/api/playlists/pause" % (self._user, self._pass, self._host, self._port))
         
     def media_next_track(self):
         """Next FPP Sequences playing"""
-        requests.get("http://%s:%s/api/command/Next Playlist Item" % (self._host, self._port))
+        requests.get("http://%s:%s@%s:%s/api/command/Next Playlist Item" % (self._user, self._pass, self._host, self._port))
         
     def media_previous_track(self):
         """Prev FPP Sequences playing"""
-        requests.get("http://%s:%s/api/command/Prev Playlist Item" % (self._host, self._port))
+        requests.get("http://%s:%s@%s:%s/api/command/Prev Playlist Item" % (self._user, self._pass, self._host, self._port))
         
     def media_seek(self, position: float) -> None:
         """Seek FPP Sequences playing"""
