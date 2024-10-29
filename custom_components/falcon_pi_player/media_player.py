@@ -6,18 +6,9 @@ import socket
 
 from homeassistant.util import dt
 
-from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity
+from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity, MediaPlayerEntityFeature
 from homeassistant.components.media_player.const import (
-    DOMAIN,
-    SUPPORT_VOLUME_SET,
-    SUPPORT_VOLUME_STEP,
-    SUPPORT_SELECT_SOURCE,
-    SUPPORT_STOP,
-    SUPPORT_PLAY,
-    SUPPORT_PAUSE,
-    SUPPORT_PREVIOUS_TRACK,
-    SUPPORT_NEXT_TRACK,
-    SUPPORT_SEEK
+    DOMAIN
 )
 from homeassistant.const import (
     CONF_HOST,
@@ -37,7 +28,14 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_NAME = "Falcon Pi Player"
 
 SUPPORT_FPP = (
-    SUPPORT_VOLUME_SET | SUPPORT_VOLUME_STEP | SUPPORT_SELECT_SOURCE | SUPPORT_STOP | SUPPORT_PLAY | SUPPORT_PAUSE | SUPPORT_PREVIOUS_TRACK | SUPPORT_NEXT_TRACK
+    MediaPlayerEntityFeature.VOLUME_SET 
+    | MediaPlayerEntityFeature.VOLUME_STEP 
+    | MediaPlayerEntityFeature.SELECT_SOURCE 
+    | MediaPlayerEntityFeature.STOP 
+    | MediaPlayerEntityFeature.PLAY 
+    | MediaPlayerEntityFeature.PAUSE 
+    | MediaPlayerEntityFeature.PREVIOUS_TRACK 
+    | MediaPlayerEntityFeature.NEXT_TRACK
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
