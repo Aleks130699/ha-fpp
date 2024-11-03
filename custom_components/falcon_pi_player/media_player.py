@@ -1,44 +1,42 @@
-"""Support for the Falcon Pi Player."""
+"""Support for the FPP."""
+
+from __future__ import annotations
+
 import logging
-import requests
-import voluptuous as vol
 import socket
 
-from homeassistant.util import dt
+import requests
+import voluptuous as vol
 
-from homeassistant.components.media_player import PLATFORM_SCHEMA, MediaPlayerEntity, MediaPlayerEntityFeature
-from homeassistant.components.media_player.const import (
-    DOMAIN
+from homeassistant.components.media_player import (
+    PLATFORM_SCHEMA as MEDIA_PLAYER_PLATFORM_SCHEMA,
+    MediaPlayerEntity,
+    MediaPlayerEntityFeature,
+    MediaPlayerState,
+    MediaType,
 )
 from homeassistant.const import (
     CONF_HOST,
-    CONF_PORT,
     CONF_NAME,
-    CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
     STATE_IDLE,
     STATE_OFF,
     STATE_PAUSED,
     STATE_PLAYING,
 )
+from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "Falcon Pi Player"
+DEFAULT_NAME = "FPP"
 
-SUPPORT_FPP = (
-    MediaPlayerEntityFeature.VOLUME_SET 
-    | MediaPlayerEntityFeature.VOLUME_STEP 
-    | MediaPlayerEntityFeature.SELECT_SOURCE 
-    | MediaPlayerEntityFeature.STOP 
-    | MediaPlayerEntityFeature.PLAY 
-    | MediaPlayerEntityFeature.PAUSE 
-    | MediaPlayerEntityFeature.PREVIOUS_TRACK 
-    | MediaPlayerEntityFeature.NEXT_TRACK
-)
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+PLATFORM_SCHEMA = MEDIA_PLAYER_PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_HOST): cv.string,
         vol.Optional(CONF_PORT, default=80): cv.string,
@@ -49,184 +47,236 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+def setup_platform(
+    hass: HomeAssistant,
+    config: ConfigType,
+    add_entities: AddEntitiesCallback,
+    discovery_info: DiscoveryInfoType | None = None,
+) -> None:
     """Set up the FPP platform."""
+    host = config[CONF_HOST]
+    port = config[CONF_PORT]
+    name = config[CONF_NAME]
+    username = config[CONF_USERNAME]
+    password = config[CONF_PASSWORD]
 
-    add_entities([FalconPiPlayer(config[CONF_HOST], config[CONF_PORT], config[CONF_NAME], config[CONF_USERNAME], config[CONF_PASSWORD])])
+    fpp = FPP(host=host, port=port, name=name, username=username, password=password)
+
+    add_entities([fpp])
 
 
-class FalconPiPlayer(MediaPlayerEntity):
-    """Representation of a Falcon Pi Player"""
+class FPP(MediaPlayerEntity):
+    """Representation of a FPP."""
 
-    def __init__(self, host, port, name, user, password):
+    _attr_supported_features = (
+        MediaPlayerEntityFeature.NEXT_TRACK
+        | MediaPlayerEntityFeature.PAUSE
+        | MediaPlayerEntityFeature.PLAY
+        | MediaPlayerEntityFeature.PREVIOUS_TRACK
+        | MediaPlayerEntityFeature.SELECT_SOURCE
+        | MediaPlayerEntityFeature.STOP
+        # | MediaPlayerEntityFeature.TURN_OFF
+        # | MediaPlayerEntityFeature.TURN_ON
+        # | MediaPlayerEntityFeature.VOLUME_MUTE
+        | MediaPlayerEntityFeature.VOLUME_SET
+        | MediaPlayerEntityFeature.VOLUME_STEP
+    )
+
+    def __init__(
+        self,
+        host: str,
+        port: str,
+        name: str,
+        username: str | None,
+        password: str | None,
+    ) -> None:
         """Initialize the Player."""
-        self._host = host
-        self._port = port
-        self._name = name
-        self._user = user
-        self._pass = password
+        self._host: str = host
+        self._port: str = port
+        self._attr_name: str = name
+        self._username: str | None = username
+        self._pass: str | None = password
+        self._base_url: str = (
+            f"http://{self._username}:{self._pass}@{self._host}:{self._port}"
+        )
         self._state = STATE_IDLE
-        self._volume = 0
-        self._media_title = None
-        self._media_playlist = None
-        self._playlists = []
-        self._media_duration = None
-        self._media_position = None
-        self._media_position_updated_at = None
-        self._attr_media_image_url = None
-        self._attr_unique_id = f"media_player_{name}"
-        self._available = False
+        self._attr_media_content_type = MediaType.MUSIC
+        self._attr_unique_id: str = f"media_player_{name}"
+        self._available: bool = False
 
-    def update(self):
+    def update(self) -> None:
         """Get the latest state from the player."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
         result = sock.connect_ex((self._host, int(self._port)))
         if result != 0:
-            self._state = "off"
+            self._state = STATE_OFF
             self._available = False
         else:
-            status = requests.get("http://%s:%s@%s:%s/api/fppd/status" % (self._user, self._pass, self._host, self._port)).json()
-    
-            self._state = status["status_name"] 
-            self._volume = status["volume"] / 100
-            if self._state == "playing":
-                self._media_title = status["current_sequence"].replace(".fseq", "") if status["current_sequence"] != "" else status["current_song"].replace(".mp3", "").replace(".mp4", "")
-                self._media_playlist = status["current_playlist"]["playlist"]
-                self._media_duration = int(status["seconds_played"]) + int(status["seconds_remaining"])
-                self._media_position = int(status["seconds_played"])
-                self._media_position_updated_at = dt.utcnow()
-                self._attr_media_image_url = ("http://%s:%s@%s:%s/api/file/Images/" % (self._user, self._pass, self._host, self._port)) + (self._media_title) + ".jpg"
-            elif self._state != "paused": 
-                self._media_title = None
-                self._media_playlist = None
-                self._media_duration = None
-                self._media_position = None
-                self._media_position_updated_at = None
-                self._attr_media_image_url = None
-    
-            playlists = requests.get(
-                "http://%s:%s@%s:%s/api/playlists/playable" % (self._user, self._pass, self._host, self._port)
+            # Pulls status even if fppd is not running.
+            status_url = f"{self._base_url}/api/system/status"
+            status = requests.get(
+                url=status_url,
+                timeout=10,
             ).json()
-            self._playlists = playlists
+
+            if status.get("fppd") != "running":
+                return
+
+            self._state = status.get("status_name")
+
+            self._attr_volume_level = (
+                status.get("volume") / 100 if status.get("volume") else 0
+            )
+            if self._state == STATE_PLAYING:
+                self._attr_media_title = (
+                    status.get("current_sequence", "").replace(".fseq", "")
+                    if status.get("current_sequence", "") != ""
+                    else status.get("current_song", "")
+                    .replace(".mp3", "")
+                    .replace(".mp4", "")
+                )
+                self._attr_media_playlist = status.get("current_playlist", []).get(
+                    "playlist"
+                )
+                self._attr_source = self._attr_media_playlist
+                self._attr_media_duration = int(status.get("seconds_played", 0)) + int(
+                    status.get("seconds_remaining", 0)
+                )
+                self._attr_media_position = int(status.get("seconds_played", 0))
+                self._attr_media_position_updated_at = dt_util.utcnow()
+                self._attr_media_image_url = (
+                    f"{self._base_url}/api/file/Images/{self._attr_media_title}.jpg"
+                )
+
+            elif self._state != STATE_PAUSED:
+                self._attr_media_title = None
+                self._attr_media_playlist = None
+                self._attr_media_duration = None
+                self._attr_media_position = None
+                self._attr_media_position_updated_at = None
+                self._attr_media_image_url = None
+
+            playlists_url = f"{self._base_url}/api/playlists/playable"
+            playlists = requests.get(
+                url=playlists_url,
+                timeout=10,
+            ).json()
+            self._attr_source_list = playlists
+
             self._available = True
 
     @property
-    def name(self):
-        """Return the name of the player."""
-        return self._name
+    def state(self) -> MediaPlayerState | None:
+        """Return the state of the device."""
+        if self._state in [None, STATE_OFF, "stopped"]:
+            return MediaPlayerState.OFF
+        if self._state == STATE_IDLE:
+            return MediaPlayerState.IDLE
+        if self._state == STATE_PLAYING:
+            return MediaPlayerState.PLAYING
+        if self._state == STATE_PAUSED:
+            return MediaPlayerState.PAUSED
+
+        return MediaPlayerState.IDLE
 
     @property
-    def state(self):
-        """Return the state of the device"""
-        if self._state is None:
-            return STATE_OFF
-        if self._state == "off":
-            return STATE_OFF
-        if self._state == "idle":
-            return STATE_IDLE
-        if self._state == "playing":
-            return STATE_PLAYING
-        if self._state == "paused":
-            return STATE_PAUSED
-
-        return STATE_IDLE
-        
-    @property
-    def available(self):
+    def available(self) -> bool:
+        """Media Device is Available."""
         return self._available
 
-    @property
-    def volume_level(self):
-        """Return the volume level."""
-        return self._volume
+    def turn_off(self) -> None:
+        """Stop FFP Daemon."""
+        url = f"{self._base_url}/api/system/fppd/stop"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
 
-    @property
-    def supported_features(self):
-        """Return media player features that are supported."""
-        return SUPPORT_FPP
+    def turn_on(self) -> None:
+        """Start FFP Daemon."""
+        url = f"{self._base_url}/api/system/fppd/start"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
 
-    @property
-    def media_title(self):
-        """Title of current playing media."""
-        return self._media_title
-
-    @property
-    def media_playlist(self):
-        """Title of current playlist."""
-        return self._media_playlist
-        
-    @property
-    def source_list(self):
-        """Return available playlists"""
-        return self._playlists
-
-    @property
-    def source(self):
-        """Return the current playlist."""
-        return self._media_playlist
-
-    @property
-    def media_position(self):
-        """Return the position of the current media."""
-        return self._media_position
-    
-    @property
-    def media_position_updated_at(self):
-        """Return the time the position of the current media was updated."""
-        return self._media_position_updated_at
-    
-    @property
-    def media_duration(self):
-        """Return the duration of the current media."""
-        return self._media_duration
-
-    def select_source(self, source):
+    def select_source(self, source: str) -> None:
         """Choose a playlist to play."""
-        requests.get("http://%s:%s@%s:%s/api/playlist/%s/start" % (self._user, self._pass, self._host, self._port, source))
+        url = f"{self._base_url}/api/playlist/{source}/start"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
 
-    def set_volume_level(self, volume):
+    def set_volume_level(self, volume: float) -> None:
         """Set volume level."""
         volume = int(volume * 100)
-        _LOGGER.info("volume is %s" % (volume))
+        _LOGGER.debug("fpp volume is %s", volume)
+        url = f"{self._base_url}/api/command"
         requests.post(
-            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
+            url=url,
             json={"command": "Volume Set", "args": [volume]},
+            timeout=10,
         )
 
-    def volume_up(self):
+    def volume_up(self) -> None:
         """Increase volume by 1 step."""
+        url = f"{self._base_url}/api/command"
         requests.post(
-            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
+            url=url,
             json={"command": "Volume Increase", "args": ["1"]},
+            timeout=10,
         )
 
-    def volume_down(self):
+    def volume_down(self) -> None:
         """Decrease volume by 1 step."""
+        url = f"{self._base_url}/api/command"
         requests.post(
-            "http://%s:%s@%s:%s/api/command" % (self._user, self._pass, self._host, self._port),
+            url=url,
             json={"command": "Volume Decrease", "args": ["1"]},
+            timeout=10,
         )
 
-    def media_stop(self):
-        """Immediately stop all FPP Sequences playing"""
-        requests.get("http://%s:%s@%s:%s/api/playlists/stop" % (self._user, self._pass, self._host, self._port))
-        
-    def media_play(self):
-        """Resume FPP Sequences playing"""
-        requests.get("http://%s:%s@%s:%s/api/playlists/resume" % (self._user, self._pass, self._host, self._port))
-        
-    def media_pause(self):
-        """Pause FPP Sequences playing"""
-        requests.get("http://%s:%s@%s:%s/api/playlists/pause" % (self._user, self._pass, self._host, self._port))
-        
-    def media_next_track(self):
-        """Next FPP Sequences playing"""
-        requests.get("http://%s:%s@%s:%s/api/command/Next Playlist Item" % (self._user, self._pass, self._host, self._port))
-        
-    def media_previous_track(self):
-        """Prev FPP Sequences playing"""
-        requests.get("http://%s:%s@%s:%s/api/command/Prev Playlist Item" % (self._user, self._pass, self._host, self._port))
-        
+    def media_stop(self) -> None:
+        """Immediately stop all FPP Sequences playing."""
+        url = f"{self._base_url}/api/playlists/stop"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
+
+    def media_play(self) -> None:
+        """Resume FPP Sequences playing."""
+        url = f"{self._base_url}/api/playlists/resume"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
+
+    def media_pause(self) -> None:
+        """Pause FPP Sequences playing."""
+        url = f"{self._base_url}/api/playlists/pause"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
+
+    def media_next_track(self) -> None:
+        """Next FPP Sequences playing."""
+        url = f"{self._base_url}/api/command/Next Playlist Item"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
+
+    def media_previous_track(self) -> None:
+        """Prev FPP Sequences playing."""
+        url = f"{self._base_url}/api/command/Prev Playlist Item"
+        requests.get(
+            url=url,
+            timeout=10,
+        )
+
     def media_seek(self, position: float) -> None:
-        """Seek FPP Sequences playing"""
+        """Seek FPP Sequences playing."""
