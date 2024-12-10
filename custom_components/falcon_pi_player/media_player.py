@@ -7,6 +7,7 @@ import socket
 
 import requests
 import voluptuous as vol
+import urllib.parse
 
 from homeassistant.components.media_player import (
     PLATFORM_SCHEMA as MEDIA_PLAYER_PLATFORM_SCHEMA,
@@ -203,7 +204,8 @@ class FPP(MediaPlayerEntity):
 
     def select_source(self, source: str) -> None:
         """Choose a playlist to play."""
-        url = f"{self._base_url}/api/playlist/{source}/start"
+        playlist_url = urllib.parse.quote_plus(source, safe='', encoding=None, errors=None)
+        url = f"{self._base_url}/api/playlist/{playlist_url}/start"
         requests.get(
             url=url,
             timeout=10,
