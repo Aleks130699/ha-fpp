@@ -1,13 +1,15 @@
 {
-    "domain": "falcon_pi_player",
-    "name": "Falcon Pi Player",
-    "after_dependencies": ["media_player"],
-    "codeowners": ["@koolsb","@Aleks130699"],
-    "config_flow": false,
-    "dependencies": ["http"],
-    "documentation": "https://github.com/Aleks130699/ha-fpp",
-    "iot_class": "local_polling",
-    "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
-    "requirements": [],
-    "version": "0.1.4"
-  }
+  "domain": "falcon_pi_player",
+  "name": "Falcon Pi Player",
+  "after_dependencies": ["media_player"],
+  "codeowners": ["@Aleks130699"],
+  "config_flow": true,
+  "dependencies": ["http"],
+  "documentation": "https://github.com/Aleks130699/ha-fpp",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": ["_fppd._udp.local."]
+}

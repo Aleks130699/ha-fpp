@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import socket
+import urllib.parse
 
 import requests
+import aiohttp
 import voluptuous as vol
-import urllib.parse
 
 from homeassistant.components.media_player import (
     PLATFORM_SCHEMA as MEDIA_PLAYER_PLATFORM_SCHEMA,
@@ -27,6 +28,7 @@ from homeassistant.const import (
     STATE_PAUSED,
     STATE_PLAYING,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -64,6 +66,28 @@ def setup_platform(
     fpp = FPP(host=host, port=port, name=name, username=username, password=password)
 
     add_entities([fpp])
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up the vlc platform."""
+    # CONF_NAME is only present in imported YAML.
+    host = entry.data.get(CONF_HOST)
+    port = entry.data.get(CONF_PORT)
+    name = entry.data.get(CONF_NAME)
+    username = entry.data.get(CONF_USERNAME)
+    password = entry.data.get(CONF_PASSWORD)
+    base_url: str = (
+        f"http://{username}:{password}@{host}:{port}"
+    )
+    url = f"{base_url}/api/system/status"
+    async with aiohttp.ClientSession() as session:
+        response = await session.get(url)
+        content = await response.json()
+
+    fpp = FPP(host=host, port=port, name=name, username=username, password=password)
+
+    async_add_entities([fpp], True)
 
 
 class FPP(MediaPlayerEntity):
