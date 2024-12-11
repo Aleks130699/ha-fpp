@@ -11,5 +11,6 @@
   "issue_tracker": "https://github.com/Aleks130699/ha-fpp/issues",
   "requirements": [],
   "ssdp": [],
-  "zeroconf": ["_fppd._udp.local."]
+  "zeroconf": ["_fppd._udp.local."],
+  "version": "0.1.5"
 }
