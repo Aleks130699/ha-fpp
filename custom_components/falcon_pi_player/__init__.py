@@ -2,34 +2,65 @@
 
 from __future__ import annotations
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from dataclasses import dataclass, fields
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
+from aiohttp import BasicAuth
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_PASSWORD,
+    CONF_URL,
+    CONF_USERNAME,
+    CONF_VERIFY_SSL,
+    Platform,
+)
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .coordinator import FPPDataUpdateCoordinator, SystemStatusUpdateCoordinator
+from .fpp_client.fpp_client import FPPClient
+
 PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER]
 
-# TODO Create ConfigEntry type alias with API object
-# TODO Rename type alias and update all entry annotations
-#type New_NameConfigEntry = ConfigEntry[MyApi]  # noqa: F821
+
+@dataclass(kw_only=True, slots=True)
+class FPPData:
+    """Data for FPP integration."""
+
+    system_status: SystemStatusUpdateCoordinator
 
 
-# TODO Update entry annotation
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+type FPPConfigEntry = ConfigEntry[FPPData]
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: FPPConfigEntry) -> bool:
     """Set up Falcon Pi Player from a config entry."""
 
-    # TODO 1. Create API instance
-    # TODO 2. Validate the API connection (and authentication)
-    # TODO 3. Store an API object for your platforms to access
-    # entry.runtime_data = MyAPI(...)
+    # Build Client Params
+    auth: BasicAuth | None = None
+    if entry.data[CONF_USERNAME] and entry.data[CONF_PASSWORD]:
+        auth = BasicAuth(entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD])
+    session = async_get_clientsession(hass, entry.data[CONF_VERIFY_SSL])
 
+    # Setup Client
+    fpp_client = FPPClient(url=entry.data[CONF_URL], auth=auth, session=session)
+
+    # Setup Coordinators
+    data = FPPData(
+        system_status=SystemStatusUpdateCoordinator(hass, fpp_client),
+    )
+
+    # Load data for each coordinator
+    for field in fields(data):
+        coordinator: FPPDataUpdateCoordinator = getattr(data, field.name)
+        await coordinator.async_config_entry_first_refresh()
+
+    entry.runtime_data = data
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
-# TODO Update entry annotation
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: FPPConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

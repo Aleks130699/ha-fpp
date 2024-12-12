@@ -6,8 +6,8 @@ import logging
 import socket
 import urllib.parse
 
-import requests
 import aiohttp
+import requests
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
@@ -28,58 +28,27 @@ from homeassistant.const import (
     STATE_PAUSED,
     STATE_PLAYING,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util import dt as dt_util
+
+from . import FPPConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "FPP"
-
-PLATFORM_SCHEMA = MEDIA_PLAYER_PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_HOST): cv.string,
-        vol.Optional(CONF_PORT, default=80): cv.string,
-        vol.Required(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Optional(CONF_USERNAME, default="admin"): cv.string,
-        vol.Optional(CONF_PASSWORD, default="falcon"): cv.string,
-    }
-)
-
-
-def setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
-) -> None:
-    """Set up the FPP platform."""
-    host = config[CONF_HOST]
-    port = config[CONF_PORT]
-    name = config[CONF_NAME]
-    username = config[CONF_USERNAME]
-    password = config[CONF_PASSWORD]
-
-    fpp = FPP(host=host, port=port, name=name, username=username, password=password)
-
-    add_entities([fpp])
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant, entry: FPPConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Set up the vlc platform."""
-    # CONF_NAME is only present in imported YAML.
+    """Setup the FPP Media Player."""
+
     host = entry.data.get(CONF_HOST)
     port = entry.data.get(CONF_PORT)
     name = entry.data.get(CONF_NAME)
     username = entry.data.get(CONF_USERNAME)
     password = entry.data.get(CONF_PASSWORD)
-    base_url: str = (
-        f"http://{username}:{password}@{host}:{port}"
-    )
+    base_url: str = f"http://{username}:{password}@{host}:{port}"
     url = f"{base_url}/api/system/status"
     async with aiohttp.ClientSession() as session:
         response = await session.get(url)
@@ -91,7 +60,7 @@ async def async_setup_entry(
 
 
 class FPP(MediaPlayerEntity):
-    """Representation of a FPP."""
+    """Representation of a FPP Media Player."""
 
     _attr_supported_features = (
         MediaPlayerEntityFeature.NEXT_TRACK
@@ -228,7 +197,9 @@ class FPP(MediaPlayerEntity):
 
     def select_source(self, source: str) -> None:
         """Choose a playlist to play."""
-        playlist_url = urllib.parse.quote_plus(source, safe='', encoding=None, errors=None)
+        playlist_url = urllib.parse.quote_plus(
+            source, safe="", encoding=None, errors=None
+        )
         url = f"{self._base_url}/api/playlist/{playlist_url}/start"
         requests.get(
             url=url,

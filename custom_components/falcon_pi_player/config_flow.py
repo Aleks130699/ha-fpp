@@ -1,65 +1,52 @@
 """Config flow for the Falcon Pi Player integration."""
 
 from __future__ import annotations
-
+from aiohttp import ClientConnectorError, BasicAuth
 import logging
 from typing import Any
-
+from yarl import URL
+from aiohttp import ClientConnectorError
 import voluptuous as vol
-import aiohttp
-
+from homeassistant.helpers import aiohttp_client,
 from homeassistant.components import onboarding, zeroconf
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_NAME, CONF_HOST, CONF_PORT, CONF_PASSWORD, CONF_USERNAME, CONF_MAC
+from .fpp_client.fpp_client import FPPClient
+
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_MAC,
+    CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_URL,
+    CONF_VERIFY_SSL
+)
+from .fpp_client.exceptions import FPPAuthenticationException, FPPConnectionException, FPPResourceNotFound, FPPZeroConfException, FPPException
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-
-from .const import DEFAULT_PORT, DEFAULT_USERNAME, DEFAULT_PASSWORD, DOMAIN
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from .const import DEFAULT_PASSWORD, DEFAULT_URL, DEFAULT_USERNAME, DOMAIN, DEFAULT_VERIFY_SSL
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO adjust the data schema to the data that you need
+# TODO: adjust the data schema to the data that you need
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST): str,
-        vol.Required(CONF_PORT, default=DEFAULT_PORT): str,
-        vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
-        vol.Required(CONF_PASSWORD, default=DEFAULT_PASSWORD): str,
+        vol.Required(CONF_URL, default=DEFAULT_URL): cv.url,
+        vol.Optional(CONF_USERNAME, default=DEFAULT_USERNAME): cv.string,
+        vol.Optional(CONF_PASSWORD, default=DEFAULT_PASSWORD): cv.string,
+        vol.Optional(CONF_VERIFY_SSL, default=DEFAULT_VERIFY_SSL): cv.boolean,
     }
 )
-
-class PlaceholderHub:
-    """Placeholder class to make tests pass.
-
-    TODO Remove this placeholder class and replace with things from your PyPI package.
-    """
-
-    def __init__(self, host: str, port: str) -> None:
-        """Initialize."""
-        self.host = host
-        self.port = port
-
-    async def authenticate(self, username: str, password: str) -> bool:
-        """Test if we can authenticate with the host."""
-        self.username = username
-        self.password = password
-        self.base_url: str = (
-            f"http://{self.username}:{self.password}@{self.host}:{self.port}"
-        )
-        url = f"{self.base_url}/api/system/status"
-        async with aiohttp.ClientSession() as session:
-            response = await session.head(url)
-        if response.status == 200:
-            return True
-        return False
-
 
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    # TODO validate the data can be used to set up a connection.
+    # TODO: validate the data can be used to set up a connection.
 
     # If your PyPI package is not built with async, pass your methods
     # to the executor:
@@ -67,32 +54,23 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     #     your_validate_func, data[CONF_USERNAME], data[CONF_PASSWORD]
     # )
 
-    hub = PlaceholderHub(data[CONF_HOST],data[CONF_PORT])
+    # Build Client Params
+    auth: BasicAuth | None = None
+    if data.get(CONF_USERNAME) and data.get(CONF_PASSWORD):
+        auth = BasicAuth(data[CONF_USERNAME], data[CONF_PASSWORD])
 
-    if not await hub.authenticate(data[CONF_USERNAME], data[CONF_PASSWORD]):
-        raise InvalidAuth
+    # Create Session
+    session = async_get_clientsession(hass=hass, verify_ssl=data.get(CONF_VERIFY_SSL,True))
 
-    # If you cannot connect:
-    # throw CannotConnect
-    # If the authentication is wrong:
-    # InvalidAuth
-    host = data[CONF_HOST]
-    port = data[CONF_PORT]
-    username = data[CONF_USERNAME]
-    password = data[CONF_PASSWORD]
-    base_url: str = (
-        f"http://{username}:{password}@{host}:{port}"
-    )
-    url = f"{base_url}/api/system/status"
-    async with aiohttp.ClientSession() as session:
-        response = await session.get(url)
-        content = await response.json()
-    data[CONF_NAME] = content["host_name"]+" - "+content["interfaces"][0]["address"]
-    # Return info that you want to store in the config entry.
-    return {"name": content["host_name"]}
+    # Setup Client
+    fpp_client = FPPClient(url=data[CONF_URL], auth=auth, session=session)
+
+    # Check if we can connect
+    return await fpp_client.async_get_system_status()
 
 
-class ConfigFlow(ConfigFlow, domain=DOMAIN):
+
+class FPPConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Falcon Pi Player."""
 
     VERSION = 1
@@ -102,18 +80,22 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
+
         if user_input is not None:
+            url = URL(user_input[CONF_URL])
+            user_input[CONF_URL] = url
             try:
-                info = await validate_input(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+                result = await validate_input(self.hass, user_input)
+            except FPPAuthenticationException:
+                errors = {"base": "invalid_auth"}
+            except (ClientConnectorError, FPPConnectionException):
+                errors = {"base": "cannot_connect"}
+            except FPPZeroConfException:
+                errors = {"base": "zeroconf_failed"}
+            except FPPException:
+                errors = {"base": "unknown"}
             else:
-                return self.async_create_entry(title=info["name"], data=user_input)
+                return self.async_create_entry(title=result["name"], data=user_input)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
