@@ -1,7 +1,7 @@
 {
   "domain": "falcon_pi_player",
   "name": "Falcon Pi Player",
-  "after_dependencies": ["media_player"],
+  "after_dependencies": ["media_player", "light"],
   "codeowners": ["@Aleks130699"],
   "config_flow": true,
   "dependencies": ["http"],

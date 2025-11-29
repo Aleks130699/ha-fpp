@@ -1,13 +1,10 @@
-"""Support for the FPP."""
-
 from __future__ import annotations
 
 import logging
-import socket
 import urllib.parse
-
-import requests
 import aiohttp
+import asyncio
+
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
@@ -49,49 +46,38 @@ PLATFORM_SCHEMA = MEDIA_PLAYER_PLATFORM_SCHEMA.extend(
     }
 )
 
-
-def setup_platform(
+async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
-    add_entities: AddEntitiesCallback,
+    async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Set up the FPP platform."""
+    """Set up the FPP platform from YAML asynchronously."""
     host = config[CONF_HOST]
     port = config[CONF_PORT]
-    name = config[CONF_NAME]
-    username = config[CONF_USERNAME]
-    password = config[CONF_PASSWORD]
-
-    fpp = FPP(host=host, port=port, name=name, username=username, password=password)
-
-    add_entities([fpp])
-
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-) -> None:
-    """Set up the vlc platform."""
-    # CONF_NAME is only present in imported YAML.
-    host = entry.data.get(CONF_HOST)
-    port = entry.data.get(CONF_PORT)
-    name = entry.data.get(CONF_NAME)
-    username = entry.data.get(CONF_USERNAME)
-    password = entry.data.get(CONF_PASSWORD)
-    base_url: str = (
-        f"http://{username}:{password}@{host}:{port}"
-    )
-    url = f"{base_url}/api/system/status"
-    async with aiohttp.ClientSession() as session:
-        response = await session.get(url)
-        content = await response.json()
+    name = config.get(CONF_NAME, DEFAULT_NAME)
+    username = config.get(CONF_USERNAME, "admin")
+    password = config.get(CONF_PASSWORD, "falcon")
 
     fpp = FPP(host=host, port=port, name=name, username=username, password=password)
 
     async_add_entities([fpp], True)
 
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    ) -> None:
+    """Set up FPP via ConfigEntry asynchronously."""
+    host = entry.data.get(CONF_HOST)
+    port = entry.data.get(CONF_PORT)
+    name = entry.data.get(CONF_NAME, DEFAULT_NAME)
+    username = entry.data.get(CONF_USERNAME, "admin")
+    password = entry.data.get(CONF_PASSWORD, "falcon")
+
+    fpp = FPP(host=host, port=port, name=name, username=username, password=password)
+    async_add_entities([fpp], True)
 
 class FPP(MediaPlayerEntity):
-    """Representation of a FPP."""
+    """Async FPP Player."""
 
     _attr_supported_features = (
         MediaPlayerEntityFeature.NEXT_TRACK
@@ -100,81 +86,73 @@ class FPP(MediaPlayerEntity):
         | MediaPlayerEntityFeature.PREVIOUS_TRACK
         | MediaPlayerEntityFeature.SELECT_SOURCE
         | MediaPlayerEntityFeature.STOP
-        # | MediaPlayerEntityFeature.TURN_OFF
-        # | MediaPlayerEntityFeature.TURN_ON
-        # | MediaPlayerEntityFeature.VOLUME_MUTE
         | MediaPlayerEntityFeature.VOLUME_SET
         | MediaPlayerEntityFeature.VOLUME_STEP
     )
 
-    def __init__(
-        self,
-        host: str,
-        port: str,
-        name: str,
-        username: str | None,
-        password: str | None,
-    ) -> None:
-        """Initialize the Player."""
-        self._host: str = host
-        self._port: str = port
-        self._attr_name: str = name
-        self._username: str | None = username
-        self._pass: str | None = password
-        self._base_url: str = (
-            f"http://{self._username}:{self._pass}@{self._host}:{self._port}"
-        )
+    def __init__(self, host: str, port: str, name: str, username: str | None, password: str | None) -> None:
+        self._host = host
+        self._port = port
+        self._name = name or DEFAULT_NAME
+        self._attr_name = name
+        self._username = username
+        self._pass = password
+        self._base_url = f"http://{self._username}:{self._pass}@{self._host}:{self._port}"
         self._state = STATE_IDLE
         self._attr_media_content_type = MediaType.MUSIC
-        self._attr_unique_id: str = f"media_player_{name}"
-        self._available: bool = False
+        self._attr_unique_id = f"media_player_{name}"
+        self._available = False
+        self._session: aiohttp.ClientSession | None = None
 
-    def update(self) -> None:
-        """Get the latest state from the player."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        result = sock.connect_ex((self._host, int(self._port)))
-        if result != 0:
-            self._state = STATE_OFF
-            self._available = False
-        else:
-            # Pulls status even if fppd is not running.
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {("fpp", self._host)},
+            "name": f"{self._name}",
+            "manufacturer": "Falcon Player",
+            "model": f"FPP [{self._host}]",
+            "configuration_url": f"http://{self._host}:{self._port}",
+        }
+
+    async def async_update(self) -> None:
+        """Async update FPP state."""
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+
+        try:
             status_url = f"{self._base_url}/api/system/status"
-            status = requests.get(
-                url=status_url,
-                timeout=10,
-            ).json()
+            async with self._session.get(status_url, timeout=10) as resp:
+                status = await resp.json()
 
             if status.get("fppd") != "running":
+                self._state = STATE_OFF
+                self._available = False
                 return
 
             self._state = status.get("status_name")
+            self._attr_volume_level = status.get("volume", 0) / 100
 
-            self._attr_volume_level = (
-                status.get("volume") / 100 if status.get("volume") else 0
-            )
             if self._state == STATE_PLAYING:
                 self._attr_media_title = (
                     status.get("current_sequence", "").replace(".fseq", "")
-                    if status.get("current_sequence", "") != ""
-                    else status.get("current_song", "")
-                    .replace(".mp3", "")
-                    .replace(".mp4", "")
+                    if status.get("current_sequence") else status.get("current_song", "").replace(".mp3", "").replace(".mp4", "")
                 )
-                self._attr_media_playlist = status.get("current_playlist", []).get(
-                    "playlist"
-                )
+                self._attr_media_playlist = status.get("current_playlist", {}).get("playlist")
                 self._attr_source = self._attr_media_playlist
-                self._attr_media_duration = int(status.get("seconds_played", 0)) + int(
-                    status.get("seconds_remaining", 0)
-                )
+                self._attr_media_duration = int(status.get("seconds_played", 0)) + int(status.get("seconds_remaining", 0))
                 self._attr_media_position = int(status.get("seconds_played", 0))
                 self._attr_media_position_updated_at = dt_util.utcnow()
-                self._attr_media_image_url = (
-                    f"{self._base_url}/api/file/Images/{self._attr_media_title}.jpg"
-                )
-
-            elif self._state != STATE_PAUSED:
+                image_url = f"{self._base_url}/api/file/Images/{self._attr_media_title}.jpg"
+                async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(self._username, self._pass)) as session:
+                    try:
+                        async with session.head(image_url, timeout=5) as img_resp:
+                            if img_resp.status == 200:
+                                self._attr_media_image_url = image_url
+                            else:
+                                self._attr_media_image_url = None
+                    except Exception:
+                        self._attr_media_image_url = None
+            else:
                 self._attr_media_title = None
                 self._attr_media_playlist = None
                 self._attr_media_duration = None
@@ -183,17 +161,17 @@ class FPP(MediaPlayerEntity):
                 self._attr_media_image_url = None
 
             playlists_url = f"{self._base_url}/api/playlists/playable"
-            playlists = requests.get(
-                url=playlists_url,
-                timeout=10,
-            ).json()
-            self._attr_source_list = playlists
+            async with self._session.get(playlists_url, timeout=10) as resp:
+                self._attr_source_list = await resp.json()
 
             self._available = True
+        except Exception as e:
+            _LOGGER.error("Error updating FPP: %s", e)
+            self._state = STATE_OFF
+            self._available = False
 
     @property
     def state(self) -> MediaPlayerState | None:
-        """Return the state of the device."""
         if self._state in [None, STATE_OFF, "stopped"]:
             return MediaPlayerState.OFF
         if self._state == STATE_IDLE:
@@ -202,107 +180,62 @@ class FPP(MediaPlayerEntity):
             return MediaPlayerState.PLAYING
         if self._state == STATE_PAUSED:
             return MediaPlayerState.PAUSED
-
         return MediaPlayerState.IDLE
 
     @property
     def available(self) -> bool:
-        """Media Device is Available."""
         return self._available
 
-    def turn_off(self) -> None:
-        """Stop FFP Daemon."""
-        url = f"{self._base_url}/api/system/fppd/stop"
-        requests.get(
-            url=url,
-            timeout=10,
+    async def _async_send_command(self, url: str, method: str = "get", json_data: dict | None = None) -> None:
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+        try:
+            if method == "get":
+                async with self._session.get(url, timeout=10):
+                    pass
+            else:
+                async with self._session.post(url, json=json_data, timeout=10):
+                    pass
+        except Exception as e:
+            _LOGGER.error("Error sending command to FPP: %s", e)
+
+    async def async_turn_off(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/system/fppd/stop")
+
+    async def async_turn_on(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/system/fppd/start")
+
+    async def async_select_source(self, source: str) -> None:
+        playlist_url = urllib.parse.quote_plus(source)
+        await self._async_send_command(f"{self._base_url}/api/playlist/{playlist_url}/start")
+
+    async def async_set_volume_level(self, volume: float) -> None:
+        volume_int = int(volume * 100)
+        await self._async_send_command(
+            f"{self._base_url}/api/command", method="post", json_data={"command": "Volume Set", "args": [volume_int]}
         )
 
-    def turn_on(self) -> None:
-        """Start FFP Daemon."""
-        url = f"{self._base_url}/api/system/fppd/start"
-        requests.get(
-            url=url,
-            timeout=10,
+    async def async_volume_up(self) -> None:
+        await self._async_send_command(
+            f"{self._base_url}/api/command", method="post", json_data={"command": "Volume Increase", "args": ["1"]}
         )
 
-    def select_source(self, source: str) -> None:
-        """Choose a playlist to play."""
-        playlist_url = urllib.parse.quote_plus(source, safe='', encoding=None, errors=None)
-        url = f"{self._base_url}/api/playlist/{playlist_url}/start"
-        requests.get(
-            url=url,
-            timeout=10,
+    async def async_volume_down(self) -> None:
+        await self._async_send_command(
+            f"{self._base_url}/api/command", method="post", json_data={"command": "Volume Decrease", "args": ["1"]}
         )
 
-    def set_volume_level(self, volume: float) -> None:
-        """Set volume level."""
-        volume = int(volume * 100)
-        _LOGGER.debug("fpp volume is %s", volume)
-        url = f"{self._base_url}/api/command"
-        requests.post(
-            url=url,
-            json={"command": "Volume Set", "args": [volume]},
-            timeout=10,
-        )
+    async def async_media_stop(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/playlists/stop")
 
-    def volume_up(self) -> None:
-        """Increase volume by 1 step."""
-        url = f"{self._base_url}/api/command"
-        requests.post(
-            url=url,
-            json={"command": "Volume Increase", "args": ["1"]},
-            timeout=10,
-        )
+    async def async_media_play(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/playlists/resume")
 
-    def volume_down(self) -> None:
-        """Decrease volume by 1 step."""
-        url = f"{self._base_url}/api/command"
-        requests.post(
-            url=url,
-            json={"command": "Volume Decrease", "args": ["1"]},
-            timeout=10,
-        )
+    async def async_media_pause(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/playlists/pause")
 
-    def media_stop(self) -> None:
-        """Immediately stop all FPP Sequences playing."""
-        url = f"{self._base_url}/api/playlists/stop"
-        requests.get(
-            url=url,
-            timeout=10,
-        )
+    async def async_media_next_track(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/command/Next Playlist Item")
 
-    def media_play(self) -> None:
-        """Resume FPP Sequences playing."""
-        url = f"{self._base_url}/api/playlists/resume"
-        requests.get(
-            url=url,
-            timeout=10,
-        )
-
-    def media_pause(self) -> None:
-        """Pause FPP Sequences playing."""
-        url = f"{self._base_url}/api/playlists/pause"
-        requests.get(
-            url=url,
-            timeout=10,
-        )
-
-    def media_next_track(self) -> None:
-        """Next FPP Sequences playing."""
-        url = f"{self._base_url}/api/command/Next Playlist Item"
-        requests.get(
-            url=url,
-            timeout=10,
-        )
-
-    def media_previous_track(self) -> None:
-        """Prev FPP Sequences playing."""
-        url = f"{self._base_url}/api/command/Prev Playlist Item"
-        requests.get(
-            url=url,
-            timeout=10,
-        )
-
-    def media_seek(self, position: float) -> None:
-        """Seek FPP Sequences playing."""
+    async def async_media_previous_track(self) -> None:
+        await self._async_send_command(f"{self._base_url}/api/command/Prev Playlist Item")
