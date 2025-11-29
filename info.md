@@ -18,12 +18,15 @@ This is a custom component to allow control of the Falcon Pi Player in [Home Ass
 * Prev a sequence
 * Pause a sequence
 * Resume a sequence
+* Brightness Control (A plugin is required Brightness Control Plugin for FPP)
 
 # Installation
 
 ### 1. Easy Mode
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Aleks130699&repository=ha-fpp&category=integration)
 Install via HACS.
+
 
 ### 2. Manual
 
@@ -41,26 +44,34 @@ After a correct installation, your configuration directory should look like the 
     └── configuration.yaml
     └── custom_components
         └── falcon_pi_player
+            └── translations
+                └── en.json
             └── __init__.py
-            └── media_player.py
+            └── config_flow.py
+            └── const.py
+            └── light.py
             └── manifest.json
-    
+            └── media_player.py
+            └── quality_scale.yaml
+            └── strings.json
 
+            
 # Configuration
 
-1. Enable the component by editing your configuration.yaml file (within the config directory as well). Edit it by adding the following lines:
+1. Add configuration via the user interface Falcon Pi Player
+2. (legacy) Enable the component by editing your configuration.yaml file (within the config directory as well). Edit it by adding the following lines:
     ```
     # Example configuration.yaml entry
     media_player:
       - platform: falcon_pi_player
         name: FPP_NAME
-        host: IP_ADDRESS
+        host: IP_ADDRESS 
         #port: PORT #optional
         #username: USERNAME #optional
         #password: PASSWORD #optional
 
-2. Reboot Home Assistant
-3. You're good to go!
+3. Reboot Home Assistant
+4. You're good to go!
 
 # Album covers
 
