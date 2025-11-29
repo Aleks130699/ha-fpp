@@ -59,7 +59,7 @@ After a correct installation, your configuration directory should look like the 
 # Configuration
 
 1. Add configuration via the user interface Falcon Pi Player
-1.1 (Irrelevant alternative) Enable the component by editing your configuration.yaml file (within the config directory as well). Edit it by adding the following lines:
+2. (legacy) Enable the component by editing your configuration.yaml file (within the config directory as well). Edit it by adding the following lines:
     ```
     # Example configuration.yaml entry
     media_player:
@@ -70,8 +70,8 @@ After a correct installation, your configuration directory should look like the 
         #username: USERNAME #optional
         #password: PASSWORD #optional
 
-2. Reboot Home Assistant
-3. You're good to go!
+3. Reboot Home Assistant
+4. You're good to go!
 
 # Album covers
 
