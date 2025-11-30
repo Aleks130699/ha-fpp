@@ -1,18 +1,28 @@
 from __future__ import annotations
 
-import logging
-import aiohttp
 import asyncio
+import logging
+
+import aiohttp
 import voluptuous as vol
 
-from homeassistant.components.light import ColorMode, LightEntity
-from homeassistant.components.light import PLATFORM_SCHEMA as LIGHT_PLATFORM_SCHEMA
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
+from homeassistant.components.light import (
+    PLATFORM_SCHEMA as LIGHT_PLATFORM_SCHEMA,
+    ColorMode,
+    LightEntity,
+)
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_NAME,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+)
 from homeassistant.core import HomeAssistant
+import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
-import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,12 +38,13 @@ PLATFORM_SCHEMA = LIGHT_PLATFORM_SCHEMA.extend(
     }
 )
 
+
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
-    ) -> None:
+) -> None:
     """Set up the FPP Brightness light from YAML (async)."""
     host = config[CONF_HOST]
     port = config[CONF_PORT]
@@ -41,12 +52,15 @@ async def async_setup_platform(
     username = config.get(CONF_USERNAME, "admin")
     password = config.get(CONF_PASSWORD, "falcon")
 
-    light = FPPBrightnessLight(host=host, port=port, name=name, username=username, password=password)
+    light = FPPBrightnessLight(
+        host=host, port=port, name=name, username=username, password=password
+    )
     async_add_entities([light], True)
+
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
-    ) -> None:
+) -> None:
     """Set up FPP Brightness light from ConfigEntry (async)."""
     host = entry.data.get(CONF_HOST)
     port = entry.data.get(CONF_PORT)
@@ -54,8 +68,11 @@ async def async_setup_entry(
     username = entry.data.get(CONF_USERNAME)
     password = entry.data.get(CONF_PASSWORD)
 
-    light = FPPBrightnessLight(host=host, port=port, name=name, username=username, password=password)
+    light = FPPBrightnessLight(
+        host=host, port=port, name=name, username=username, password=password
+    )
     async_add_entities([light], True)
+
 
 class FPPBrightnessLight(LightEntity):
     """Representation of FPP brightness as a Light entity (fully async)."""
@@ -63,13 +80,22 @@ class FPPBrightnessLight(LightEntity):
     _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
     _attr_color_mode = ColorMode.BRIGHTNESS
 
-    def __init__(self, host: str, port: str, name: str, username: str | None, password: str | None) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: str,
+        name: str,
+        username: str | None,
+        password: str | None,
+    ) -> None:
         self._host = host
         self._port = port
         self._name = name or DEFAULT_NAME
         self._username = username
         self._pass = password
-        self._base_url = f"http://{self._username}:{self._pass}@{self._host}:{self._port}"
+        self._base_url = (
+            f"http://{self._username}:{self._pass}@{self._host}:{self._port}"
+        )
         self._attr_is_on = False
         self._attr_brightness = 255
         self._available = False
@@ -115,7 +141,9 @@ class FPPBrightnessLight(LightEntity):
                 self._attr_is_on = value > 0
                 self._available = True
         except Exception as err:
-            _LOGGER.debug("Failed to update FPP brightness from %s: %s", self._host, err)
+            _LOGGER.debug(
+                "Failed to update FPP brightness from %s: %s", self._host, err
+            )
             self._available = False
 
     async def _async_send_command(self, payload: dict) -> None:
@@ -156,7 +184,12 @@ class FPPBrightnessLight(LightEntity):
         self._attr_is_on = target_percent > 0
         self.async_write_ha_state()
 
-        await self._async_send_command({"command": "Brightness Fade", "args": [str(target_percent), str(fade_duration)]})
+        await self._async_send_command(
+            {
+                "command": "Brightness Fade",
+                "args": [str(target_percent), str(fade_duration)],
+            }
+        )
 
         if self._fade_task:
             self._fade_task.cancel()
@@ -170,7 +203,9 @@ class FPPBrightnessLight(LightEntity):
         self._attr_is_on = False
         self.async_write_ha_state()
 
-        await self._async_send_command({"command": "Brightness Fade", "args": ["0", str(fade_duration)]})
+        await self._async_send_command(
+            {"command": "Brightness Fade", "args": ["0", str(fade_duration)]}
+        )
 
         if self._fade_task:
             self._fade_task.cancel()
@@ -190,4 +225,3 @@ class FPPBrightnessLight(LightEntity):
         if self._session is not None:
             await self._session.close()
             self._session = None
-

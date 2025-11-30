@@ -12,7 +12,7 @@ PLATFORMS: list[Platform] = [Platform.MEDIA_PLAYER, Platform.LIGHT]
 
 # TODO Create ConfigEntry type alias with API object
 # TODO Rename type alias and update all entry annotations
-#type New_NameConfigEntry = ConfigEntry[MyApi]  # noqa: F821
+# type New_NameConfigEntry = ConfigEntry[MyApi]  # noqa: F821
 
 
 # TODO Update entry annotation

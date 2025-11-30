@@ -4,9 +4,9 @@
 
 # HomeAssistant - Falcon Pi Player (FPP) Component
 
-This is a custom component to allow control of the Falcon Pi Player in [Home Assistant](https://home-assistant.io). 
+This is a custom component to allow control of the Falcon Pi Player in [Home Assistant](https://home-assistant.io).
 
-# Features:
+# Features
 
 * View current playing sequence and playlist
 * Cover art support
@@ -27,7 +27,6 @@ This is a custom component to allow control of the Falcon Pi Player in [Home Ass
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Aleks130699&repository=ha-fpp&category=integration)
 Install via HACS.
 
-
 ### 2. Manual
 
 Install it as any custom homeassistant component:
@@ -39,7 +38,6 @@ Install it as any custom homeassistant component:
 
 After a correct installation, your configuration directory should look like the following:
 
-    
     └── ...
     └── configuration.yaml
     └── custom_components
@@ -60,6 +58,7 @@ After a correct installation, your configuration directory should look like the 
 
 1. Add configuration via the user interface Falcon Pi Player
 2. (legacy) Enable the component by editing your configuration.yaml file (within the config directory as well). Edit it by adding the following lines:
+
     ```
     # Example configuration.yaml entry
     media_player:
